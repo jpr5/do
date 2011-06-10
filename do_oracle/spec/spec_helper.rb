@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = RUBY_PLATFORM =~ /java/
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -18,11 +19,13 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_oracle'
 
 DataObjects::Oracle.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
+
 
 # Set default time zone in MRI if not set in environment
 # as otherwise wrong time zone is set for database connection
@@ -36,9 +39,12 @@ CONFIG.host     = ENV['DO_ORACLE_HOST'] || 'localhost'
 CONFIG.port     = ENV['DO_ORACLE_PORT'] || '1521'
 CONFIG.database = ENV['DO_ORACLE_DATABASE'] || '/orcl'
 
-CONFIG.uri = ENV["DO_ORACLE_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user}:#{CONFIG.pass}@#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
-CONFIG.sleep = "BEGIN SYS.DBMS_LOCK.sleep(seconds => 1); END;"
-CONFIG.testsql = "SELECT 1 FROM dual"
+CONFIG.driver       = 'oracle'
+CONFIG.jdbc_driver  = DataObjects::Oracle.const_get('JDBC_DRIVER') rescue nil
+CONFIG.uri          = ENV["DO_ORACLE_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user}:#{CONFIG.pass}@#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
+CONFIG.jdbc_uri     = "jdbc:oracle:thin:#{CONFIG.user}/#{CONFIG.pass}@//#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
+CONFIG.sleep        = "BEGIN SYS.DBMS_LOCK.sleep(seconds => 1); END;"
+CONFIG.testsql      = "SELECT 1 FROM dual"
 
 module DataObjectsSpecHelpers
 
@@ -191,4 +197,7 @@ module DataObjectsSpecHelpers
 
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

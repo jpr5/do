@@ -1,3 +1,24 @@
+## 0.10.6 2011-05-22
+
+No changes
+
+## 0.10.5 2011-05-03
+
+No changes
+
+## 0.10.4 2011-04-28
+
+New features
+* Add save point to transactions (all)
+* JRuby 1.9 mode support (encodings etc.)
+
+Bugfixes
+* Fix bug when using nested transactions in concurrent scenarios (all)
+* Use column aliases instead of names (jruby)
+
+Other
+* Switch back to RSpec
+
 ## 0.10.3 2011-01-30
 * No changes
 

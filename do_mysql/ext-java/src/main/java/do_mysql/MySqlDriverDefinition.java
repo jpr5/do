@@ -11,13 +11,13 @@ import java.util.Properties;
 import org.jruby.Ruby;
 import org.jruby.runtime.builtin.IRubyObject;
 
+import data_objects.RubyType;
+import data_objects.drivers.AbstractDriverDefinition;
+
 import java.sql.DriverManager;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import data_objects.RubyType;
-import data_objects.drivers.AbstractDriverDefinition;
-import static data_objects.util.DynamicProxyUtil.*;
 
 public class MySqlDriverDefinition extends AbstractDriverDefinition {
 
@@ -49,7 +49,7 @@ public class MySqlDriverDefinition extends AbstractDriverDefinition {
             IOException {
         switch (type) {
         case FIXNUM:
-            switch (proxyRSMD(rs.getMetaData()).getColumnType(col)) {
+            switch (rs.getMetaData().getColumnType(col)) {
             case Types.TINYINT:
                 boolean bool = rs.getBoolean(col);
                 return runtime.newBoolean(bool);
@@ -156,8 +156,13 @@ public class MySqlDriverDefinition extends AbstractDriverDefinition {
             IRubyObject connection, String url, Properties props) throws SQLException {
         java.sql.Connection conn;
         try {
-            conn = proxyCON(DriverManager.getConnection(url, props));
+            conn = DriverManager.getConnection(url, props);
         } catch (SQLException eex) {
+            /*
+             * Used to get an exception that indicated a bad character encoding,
+             * but that doesn't seem to be the case anywhere.  So instead we'll
+             * just try blindly to reconnect once with UTF8_ENCODING.
+
             Pattern p = Pattern.compile("Unsupported character encoding '(.+)'\\.");
             Matcher m = p.matcher(eex.getMessage());
 
@@ -167,13 +172,12 @@ public class MySqlDriverDefinition extends AbstractDriverDefinition {
                 runtime.getWarnings().warn(String.format(
                         "Encoding %s is not a known Ruby encoding for %s\n",
                         m.group(1), RUBY_MODULE_NAME));
-                setEncodingProperty(props, UTF8_ENCODING);
-                API.setInstanceVariable(connection,
-                        "@encoding", runtime.newString(UTF8_ENCODING));
-                conn = proxyCON(DriverManager.getConnection(url, props));
-            } else {
-                throw eex;
-            }
+
+            */
+
+            setEncodingProperty(props, UTF8_ENCODING);
+            API.setInstanceVariable(connection, "@encoding", runtime.newString(UTF8_ENCODING));
+            conn = DriverManager.getConnection(url, props);
         }
         return conn;
     }

@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = RUBY_PLATFORM =~ /java/
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -19,19 +20,18 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_sqlite3'
 
-DataObjects::Sqlite3.logger = DataObjects::Logger.new(STDOUT, :off)
-at_exit { DataObjects.logger.flush }
 
-CONFIG = OpenStruct.new
-CONFIG.scheme   = 'sqlite3'
-CONFIG.database = ENV['DO_SQLITE3_DATABASE'] || ":memory:"
-
-CONFIG.uri = ENV["DO_SQLITE3_SPEC_URI"] || "#{CONFIG.scheme}:#{CONFIG.database}"
-CONFIG.jdbc_driver = 'org.sqlite.JDBC'
-CONFIG.jdbc_uri = CONFIG.uri.sub(/sqlite3/,"jdbc:sqlite")
+CONFIG              = OpenStruct.new
+CONFIG.scheme       = 'sqlite3'
+CONFIG.database     = ENV['DO_SQLITE3_DATABASE'] || ":memory:"
+CONFIG.uri          = ENV["DO_SQLITE3_SPEC_URI"] || "#{CONFIG.scheme}:#{CONFIG.database}"
+CONFIG.driver       = 'sqlite3'
+CONFIG.jdbc_driver  = DataObjects::Sqlite3.const_get('JDBC_DRIVER') rescue nil
+CONFIG.jdbc_uri     = CONFIG.uri.sub(/sqlite3/,"jdbc:sqlite")
 
 module DataObjectsSpecHelpers
 
@@ -140,4 +140,7 @@ module DataObjectsSpecHelpers
 
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

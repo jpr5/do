@@ -29,10 +29,6 @@ Examples of usage:
     @reader = @connection.create_command('SELECT * FROM users').execute_reader
     @reader.next!
 
-In the future, the `Connection` constructor will be able to be passed either a
-DataObjects-style URL or JDBC style URL, when using do\_sqlserver on JRuby.
-However, this feature is not currently working reliably and is a known issue.
-
 * See also the accompanying `CONNECTING.markdown`.
 
 ## Requirements
@@ -82,7 +78,7 @@ For more information, see the SQL Server driver wiki page:
 ## Developers
 
 Follow the above installation instructions. Additionally, you'll need:
-  * `bacon` gem for running specs.
+  * `rspec` gem for running specs.
   * `YARD` gem for generating documentation.
 
 See the DataObjects wiki for more comprehensive information on installing and
@@ -99,10 +95,7 @@ To run specs without compiling extensions first:
 
 To run individual specs:
 
-    rake spec TEST=spec/connection_spec.rb
-
-(Note that the `rake` task uses a `TEST` parameter, not `SPEC`. This is because
-the `Rake::TestTask` is used for executing the Bacon specs).
+    rake spec SPEC=spec/connection_spec.rb
 
 ## License
 

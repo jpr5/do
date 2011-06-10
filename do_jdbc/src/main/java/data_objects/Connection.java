@@ -30,7 +30,6 @@ import org.jruby.runtime.callback.Callback;
 import data_objects.drivers.DriverDefinition;
 import data_objects.errors.Errors;
 import data_objects.util.JDBCUtil;
-import static data_objects.util.DynamicProxyUtil.*;
 
 /**
  * Connection Class.
@@ -156,14 +155,13 @@ public final class Connection extends DORubyObject {
         java.sql.Connection conn = null;
 
         try {
-            if (connectionUri.getPath() != null && connectionUri.getScheme().equals("java")) {
-                String jndiName = connectionUri.toString().replace("://", ":");
+            if (connectionUri.getSchemeSpecificPart() != null && connectionUri.getScheme().equals("java")) {
+                String jndiName = connectionUri.toString();
 
                 try {
-                    InitialContext context = proxyIC(new InitialContext());
-                    DataSource dataSource = proxyDS((DataSource) context.lookup(jndiName));
-                    // TODO maybe allow username and password here as well !??!
-                    conn = proxyCON(dataSource.getConnection());
+                    InitialContext context = new InitialContext();
+                    DataSource dataSource = (DataSource) context.lookup(jndiName);
+                    conn = dataSource.getConnection();
                 } catch (NamingException ex) {
                     JDBCUtil.close(conn);
                     throw Errors.newConnectionError(runtime, "Can't lookup datasource: "

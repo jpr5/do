@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = RUBY_PLATFORM =~ /java/
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -18,11 +19,13 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_sqlserver'
 
 DataObjects::SqlServer.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
+
 
 CONFIG = OpenStruct.new
 CONFIG.scheme   = 'sqlserver'
@@ -33,8 +36,10 @@ CONFIG.port     = ENV['DO_SQLSERVER_PORT'] || '1433'
 CONFIG.instance = ENV['DO_SQLSERVER_INSTANCE'] || 'SQLEXPRESS'
 CONFIG.database = ENV['DO_SQLSERVER_DATABASE'] || "/do_test;instance=#{CONFIG.instance};"
 
-CONFIG.uri = ENV["DO_SQLSERVER_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user}:#{CONFIG.pass}@#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
-CONFIG.sleep = "WAITFOR DELAY '00:00:01'"
+CONFIG.driver       = 'sqlserver'
+CONFIG.jdbc_driver  = DataObjects::SqlServer.const_get('JDBC_DRIVER') rescue nil
+CONFIG.uri          = ENV["DO_SQLSERVER_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user}:#{CONFIG.pass}@#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
+CONFIG.sleep        = "WAITFOR DELAY '00:00:01'"
 
 module DataObjectsSpecHelpers
 
@@ -148,4 +153,7 @@ module DataObjectsSpecHelpers
 
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

@@ -22,12 +22,9 @@ import org.jruby.Ruby;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.RubyString;
 
-import org.joda.time.DateTime;
-
 import data_objects.RubyType;
 import data_objects.drivers.AbstractDriverDefinition;
 import data_objects.util.JDBCUtil;
-import static data_objects.util.DynamicProxyUtil.*;
 
 public class OracleDriverDefinition extends AbstractDriverDefinition {
 
@@ -97,7 +94,7 @@ public class OracleDriverDefinition extends AbstractDriverDefinition {
             IOException {
         switch (type) {
         case TIME:
-            switch (proxyRSMD(rs.getMetaData()).getColumnType(col)) {
+            switch (rs.getMetaData().getColumnType(col)) {
             case OracleTypes.DATE:
             case OracleTypes.TIMESTAMP:
             case OracleTypes.TIMESTAMPTZ:
@@ -112,8 +109,7 @@ public class OracleDriverDefinition extends AbstractDriverDefinition {
                 if (str == null) {
                     return runtime.getNil();
                 }
-                RubyString return_str = RubyString.newUnicodeString(runtime,
-                        str);
+                RubyString return_str = newUnicodeString(runtime, str);
                 return_str.setTaint(true);
                 return return_str;
             }
@@ -151,7 +147,6 @@ public class OracleDriverDefinition extends AbstractDriverDefinition {
      */
     @Override
     public boolean registerPreparedStatementReturnParam(String sqlText, PreparedStatement ps, int idx) throws SQLException {
-        // TODO Add driver-specific proxy ?
         OraclePreparedStatement ops = (OraclePreparedStatement) ps;
         Pattern p = Pattern.compile("^\\s*INSERT.+RETURNING.+INTO\\s+", Pattern.CASE_INSENSITIVE);
         Matcher m = p.matcher(sqlText);
@@ -171,8 +166,7 @@ public class OracleDriverDefinition extends AbstractDriverDefinition {
     @Override
     public long getPreparedStatementReturnParam(PreparedStatement ps) throws SQLException {
         OraclePreparedStatement ops = (OraclePreparedStatement) ps;
-        // TODO Add driver-specific proxy ?
-        ResultSet rs = proxyRS(ops.getReturnResultSet());
+        ResultSet rs = ops.getReturnResultSet();
         try {
             if (rs.next()) {
                 // Assuming that primary key will not be larger as long max value

@@ -1,44 +1,52 @@
 require File.expand_path(File.join(File.dirname(__FILE__), 'spec_helper'))
 
 describe DataObjects::URI do
-  before do
-    @uri = DataObjects::URI.parse('mock://username:password@localhost:12345/path?encoding=utf8#fragment')
+  subject { described_class.parse(uri) }
+
+  context 'parsing parts' do
+    let(:uri) { 'mock://username:password@localhost:12345/path?encoding=utf8#fragment'  }
+
+    its(:scheme)    { should == 'mock'      }
+    its(:user)      { should == 'username'  }
+    its(:password)  { should == 'password'  }
+    its(:host)      { should == 'localhost' }
+    its(:port)      { should == 12345       }
+    its(:path)      { should == '/path'     }
+    its(:query)     { should == { 'encoding' => 'utf8' } }
+    its(:fragment)  { should == 'fragment'  }
+
+    it 'should provide a correct string representation' do
+      subject.to_s.should == 'mock://username:password@localhost:12345/path?encoding=utf8#fragment'
+    end
   end
 
-  it "should parse the scheme part" do
-    @uri.scheme.should == "mock"
+  context 'parsing JDBC URL parts' do
+    let(:uri) { 'jdbc:mock://username:password@localhost:12345/path?encoding=utf8#fragment'  }
+
+    its(:scheme)    { should == 'jdbc'      }
+    its(:subscheme) { should == 'mock'      }
+    its(:user)      { should == 'username'  }
+    its(:password)  { should == 'password'  }
+    its(:host)      { should == 'localhost' }
+    its(:port)      { should == 12345       }
+    its(:path)      { should == '/path'     }
+    its(:query)     { should == { 'encoding' => 'utf8' } }
+    its(:fragment)  { should == 'fragment'  }
+
+    it 'should provide a correct string representation' do
+      subject.to_s.should == 'jdbc:mock://username:password@localhost:12345/path?encoding=utf8#fragment'
+    end
   end
 
-  it "should parse the user part" do
-    @uri.user.should == "username"
-  end
+  context 'parsing parts' do
+    let(:uri) { 'java:comp/env/jdbc/TestDataSource'  }
 
-  it "should parse the password part" do
-    @uri.password.should == "password"
-  end
+    its(:scheme)    { should == 'java' }
+    its(:path)      { should == 'comp/env/jdbc/TestDataSource'     }
 
-  it "should parse the host part" do
-    @uri.host.should == "localhost"
-  end
-
-  it "should parse the port part" do
-    @uri.port.should == 12345
-  end
-
-  it "should parse the path part" do
-    @uri.path.should == "/path"
-  end
-
-  it "should parse the query part" do
-    @uri.query.should == { "encoding" => "utf8" }
-  end
-
-  it "should parse the fragment part" do
-    @uri.fragment.should == "fragment"
-  end
-
-  it "should provide a correct string representation" do
-    @uri.to_s.should == 'mock://username:password@localhost:12345/path?encoding=utf8#fragment'
+    it 'should provide a correct string representation' do
+      subject.to_s.should == 'java:comp/env/jdbc/TestDataSource'
+    end
   end
 
 end

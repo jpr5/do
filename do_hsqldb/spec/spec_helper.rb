@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = true
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -18,22 +19,19 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_hsqldb'
 
 DataObjects::Hsqldb.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
 
-CONFIG = OpenStruct.new
-# CONFIG.scheme   = 'hsqldb'
-# CONFIG.user     = ENV['DO_HSQLDB_USER'] || 'hsqldb'
-# CONFIG.pass     = ENV['DO_HSQLDB_PASS'] || ''
-# CONFIG.host     = ENV['DO_HSQLDB_HOST'] || ''
-# CONFIG.port     = ENV['DO_HSQLDB_PORT'] || ''
-# CONFIG.database = ENV['DO_HSQLDB_DATABASE'] || "#{File.expand_path(File.dirname(__FILE__))}/testdb"
 
-CONFIG.uri = ENV["DO_HSQLDB_SPEC_URI"] || "jdbc:hsqldb:mem:test"
-CONFIG.testsql = "select 1 from INFORMATION_SCHEMA.SYSTEM_USERS"
+CONFIG              = OpenStruct.new
+CONFIG.uri          = ENV["DO_HSQLDB_SPEC_URI"] || "jdbc:hsqldb:mem:test"
+CONFIG.driver       = 'hsqldb'
+CONFIG.jdbc_driver  = DataObjects::Hsqldb::JDBC_DRIVER
+CONFIG.testsql      = "select 1 from INFORMATION_SCHEMA.SYSTEM_USERS"
 
 module DataObjectsSpecHelpers
 
@@ -165,4 +163,7 @@ module DataObjectsSpecHelpers
   end
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

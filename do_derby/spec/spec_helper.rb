@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = true
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -18,22 +19,19 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_derby'
 
 DataObjects::Derby.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
 
-CONFIG = OpenStruct.new
-# CONFIG.scheme   = 'derby'
-# CONFIG.user     = ENV['DO_DERBY_USER'] || 'derby'
-# CONFIG.pass     = ENV['DO_DERBY_PASS'] || ''
-# CONFIG.host     = ENV['DO_DERBY_HOST'] || ''
-# CONFIG.port     = ENV['DO_DERBY_PORT'] || ''
-# CONFIG.database = ENV['DO_DERBY_DATABASE'] || "#{File.expand_path(File.dirname(__FILE__))}/testdb"
 
-CONFIG.uri = ENV["DO_DERBY_SPEC_URI"] || "jdbc:derby:testdb;create=true"
-CONFIG.testsql = "SELECT 1 FROM SYSIBM.SYSDUMMY1"
+CONFIG              = OpenStruct.new
+CONFIG.uri          = ENV["DO_DERBY_SPEC_URI"] || "jdbc:derby:testdb;create=true"
+CONFIG.driver       = 'derby'
+CONFIG.jdbc_driver  = DataObjects::Derby::JDBC_DRIVER
+CONFIG.testsql      = "SELECT 1 FROM SYSIBM.SYSDUMMY1"
 
 module DataObjectsSpecHelpers
 
@@ -186,4 +184,7 @@ module DataObjectsSpecHelpers
   end
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

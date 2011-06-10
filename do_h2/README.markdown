@@ -53,7 +53,7 @@ For more information, see the H2 driver wiki page:
 ## Developers
 
 Follow the above installation instructions. Additionally, you'll need:
-  * `bacon` gem for running specs.
+  * `rspec` gem for running specs.
   * `YARD` gem for generating documentation.
 
 See the DataObjects wiki for more comprehensive information:
@@ -69,10 +69,7 @@ To run specs without compiling extensions first:
 
 To run individual specs:
 
-    jruby -S rake spec TEST=spec/connection_spec.rb
-
-(Note that the `rake` task uses a `TEST` parameter, not `SPEC`. This is because
-the `Rake::TestTask` is used for executing the Bacon specs).
+    jruby -S rake spec SPEC=spec/connection_spec.rb
 
 ## License
 

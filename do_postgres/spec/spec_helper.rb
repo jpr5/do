@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = RUBY_PLATFORM =~ /java/
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -19,11 +20,13 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_postgres'
 
 DataObjects::Postgres.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
+
 
 CONFIG = OpenStruct.new
 CONFIG.scheme    = 'postgres'
@@ -38,9 +41,11 @@ CONFIG.host      = ENV['DO_POSTGRES_HOST'] || 'localhost'
 CONFIG.port      = ENV['DO_POSTGRES_PORT'] || '5432'
 CONFIG.database  = ENV['DO_POSTGRES_DATABASE'] || '/do_test'
 
-CONFIG.uri = ENV["DO_POSTGRES_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user_info}#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
-CONFIG.jdbc_uri = CONFIG.uri.sub(/postgres/,"jdbc:postgresql")
-CONFIG.sleep = "SELECT pg_sleep(1)"
+CONFIG.driver       = 'postgres'
+CONFIG.jdbc_driver  = DataObjects::Postgres.const_get('JDBC_DRIVER') rescue nil
+CONFIG.uri          = ENV["DO_POSTGRES_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user_info}#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
+CONFIG.jdbc_uri     = CONFIG.uri.sub(/postgres/,"jdbc:postgresql")
+CONFIG.sleep        = "SELECT pg_sleep(1)"
 
 module DataObjectsSpecHelpers
 
@@ -149,4 +154,7 @@ module DataObjectsSpecHelpers
 
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

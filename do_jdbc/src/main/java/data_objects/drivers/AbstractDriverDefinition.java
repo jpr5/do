@@ -1,8 +1,5 @@
 package data_objects.drivers;
 
-import static data_objects.util.DynamicProxyUtil.proxyCON;
-import static data_objects.util.DynamicProxyUtil.proxyRSMD;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -22,6 +19,7 @@ import java.sql.Types;
 import java.util.Map;
 import java.util.Properties;
 
+import org.jcodings.Encoding;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -29,6 +27,7 @@ import org.jruby.Ruby;
 import org.jruby.RubyBigDecimal;
 import org.jruby.RubyBignum;
 import org.jruby.RubyClass;
+import org.jruby.RubyEncoding;
 import org.jruby.RubyFixnum;
 import org.jruby.RubyFloat;
 import org.jruby.RubyHash;
@@ -136,7 +135,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
      * @throws SQLException
      */
     public Connection getConnection(String uri, Properties properties) throws SQLException{
-        return proxyCON(driver.connect(uri, properties));
+        return driver.connect(uri, properties);
     }
 
     /**
@@ -332,7 +331,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
             }
             return prepareRubyDateTimeFromSqlTimestamp(runtime, sqlTimestampToDateTime(dt));
         case TIME:
-            switch (proxyRSMD(rs.getMetaData()).getColumnType(col)) {
+            switch (rs.getMetaData().getColumnType(col)) {
             case Types.TIME:
                 java.sql.Time tm = rs.getTime(col);
                 if (tm == null) {
@@ -344,7 +343,10 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
                 if (ts == null) {
                     return runtime.getNil();
                 }
-                return prepareRubyTimeFromSqlTime(runtime, sqlTimestampToDateTime(ts));
+                RubyTime rbt = prepareRubyTimeFromSqlTime(runtime, sqlTimestampToDateTime(ts));
+                long usec = (long) (ts.getNanos() / 1000) % 1000;
+                rbt.setUSec(usec);
+                return rbt;
             case Types.DATE:
                 java.sql.Date da = rs.getDate(col);
                 if (da == null) {
@@ -356,8 +358,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
                 if (str == null) {
                     return runtime.getNil();
                 }
-                RubyString return_str = RubyString.newUnicodeString(runtime,
-                        str);
+                RubyString return_str = newUnicodeString(runtime, str);
                 return_str.setTaint(true);
                 return return_str;
             }
@@ -386,8 +387,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
             if (classNameStr == null) {
                 return runtime.getNil();
             }
-            RubyString class_name_str = RubyString.newUnicodeString(runtime, rs
-                    .getString(col));
+            RubyString class_name_str = newUnicodeString(runtime, rs.getString(col));
             class_name_str.setTaint(true);
             return API.callMethod(runtime.fastGetModule("DataObjects"), "full_const_get",
                     class_name_str);
@@ -399,10 +399,26 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
             if (str == null) {
                 return runtime.getNil();
             }
-            RubyString return_str = RubyString.newUnicodeString(runtime, str);
+
+            RubyString return_str = newUnicodeString(runtime, str);
             return_str.setTaint(true);
             return return_str;
         }
+    }
+
+    protected RubyString newUnicodeString(Ruby runtime, String str) {
+        RubyString return_str;
+        if (runtime.is1_9()){
+            IRubyObject obj = RubyEncoding.getDefaultInternal(RubyString.newEmptyString(runtime));
+            Encoding enc = obj.isNil() ? Encoding.load("UTF8") : ((RubyEncoding) obj).getEncoding();
+            ByteList value = new ByteList(RubyEncoding.encodeUTF8(str), false);
+            return_str = RubyString.newString(runtime, value);
+            value.setEncoding(enc);
+        }
+        else {
+            return_str = RubyString.newUnicodeString(runtime, str);
+        }
+        return return_str;
     }
 
     /**
@@ -457,6 +473,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
         case TIME:
             DateTime dateTime = ((RubyTime) arg).getDateTime();
             Timestamp ts = new Timestamp(dateTime.getMillis());
+            ts.setNanos(ts.getNanos() + (int)(((RubyTime)arg).getUSec()) * 1000);
             ps.setTimestamp(idx, ts, dateTime.toGregorianCalendar());
             break;
         case DATE_TIME:
@@ -680,11 +697,8 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
 
         RubyClass klazz = runtime.fastGetClass("DateTime");
 
-        IRubyObject rbOffset = runtime.fastGetClass("Rational").callMethod(
-                runtime.getCurrentContext(),
-                "new",
-                new IRubyObject[] { runtime.newFixnum(zoneOffset),
-                        runtime.newFixnum(86400) });
+        IRubyObject rbOffset = runtime.getKernel().callMethod("Rational",
+                runtime.newFixnum(zoneOffset), runtime.newFixnum(86400));
 
         return klazz.callMethod(runtime.getCurrentContext(), "civil",
                 new IRubyObject[] { runtime.newFixnum(stamp.getYear()),
@@ -702,13 +716,8 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
      * @param time
      * @return
      */
-    protected static IRubyObject prepareRubyTimeFromSqlTime(Ruby runtime,
+    protected static RubyTime prepareRubyTimeFromSqlTime(Ruby runtime,
             DateTime time) {
-        // TODO: why in this case nil is returned?
-        if (time.getMillis() + 3600000 == 0) {
-            return runtime.getNil();
-        }
-
         RubyTime rbTime = RubyTime.newTime(runtime, time);
         return rbTime;
     }
@@ -719,12 +728,8 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
      * @param date
      * @return
      */
-    protected static IRubyObject prepareRubyTimeFromSqlDate(Ruby runtime,
+    protected static RubyTime prepareRubyTimeFromSqlDate(Ruby runtime,
             Date date) {
-
-        if (date.getTime() + 3600000 == 0) {
-            return runtime.getNil();
-        }
         RubyTime rbTime = RubyTime.newTime(runtime, date.getTime());
         return rbTime;
     }

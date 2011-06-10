@@ -3,24 +3,22 @@ begin
   require 'rake/extensiontask'
   require 'rake/javaextensiontask'
 
-  # Hack to avoid "allocator undefined for Proc" issue when unpacking Gems:
-  # gemspec provided by Jeweler uses Rake::FileList for files, test_files and
-  # extra_rdoc_files, and procs cannot be marshalled.
   def gemspec
-    @clean_gemspec ||= eval("#{Rake.application.jeweler.gemspec.to_ruby}") # $SAFE = 3\n
+    @clean_gemspec ||= Gem::Specification::load(File.expand_path('../../do_oracle.gemspec', __FILE__))
   end
 
-  Rake::ExtensionTask.new('do_oracle', gemspec) do |ext|
+  unless JRUBY
+    Rake::ExtensionTask.new('do_oracle', gemspec) do |ext|
 
-    ext.lib_dir = "lib/#{gemspec.name}"
+      ext.lib_dir = "lib/#{gemspec.name}"
 
-    # automatically add build options to avoid need of manual input
-    if RUBY_PLATFORM =~ /mswin|mingw/ then
-    else
-      ext.cross_compile = true
-      ext.cross_platform = ['x86-mingw32', 'x86-mswin32-60']
+      # automatically add build options to avoid need of manual input
+      if RUBY_PLATFORM =~ /mswin|mingw/ then
+      else
+        ext.cross_compile = true
+        ext.cross_platform = ['x86-mingw32', 'x86-mswin32-60']
+      end
     end
-
   end
 
   Rake::JavaExtensionTask.new('do_oracle', gemspec) do |ext|
@@ -34,7 +32,7 @@ begin
       #       Gem::Specification API.
       gem.dependencies.delete_if { |d| d.name == 'ruby-oci8'}
 
-      gem.add_dependency "do_jdbc", '0.10.3'
+      gem.add_dependency "do_jdbc", '0.10.6'
     end
   end
 rescue LoadError

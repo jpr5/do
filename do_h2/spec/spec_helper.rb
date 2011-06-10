@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = true
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -18,21 +19,18 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_h2'
 
 DataObjects::H2.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
 
-CONFIG = OpenStruct.new
-# CONFIG.scheme   = 'h2'
-# CONFIG.user     = ENV['DO_H2_USER'] || 'h2'
-# CONFIG.pass     = ENV['DO_H2_PASS'] || ''
-# CONFIG.host     = ENV['DO_H2_HOST'] || ''
-# CONFIG.port     = ENV['DO_H2_PORT'] || ''
-# CONFIG.database = ENV['DO_H2_DATABASE'] || "#{File.expand_path(File.dirname(__FILE__))}/testdb"
 
-CONFIG.uri = ENV["DO_H2_SPEC_URI"] || "jdbc:h2:mem"
+CONFIG              = OpenStruct.new
+CONFIG.uri          = ENV["DO_H2_SPEC_URI"] || "jdbc:h2:mem"
+CONFIG.driver       = 'h2'
+CONFIG.jdbc_driver  = DataObjects::H2::JDBC_DRIVER
 
 module DataObjectsSpecHelpers
 
@@ -165,4 +163,7 @@ module DataObjectsSpecHelpers
   end
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end

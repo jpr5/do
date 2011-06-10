@@ -2,6 +2,7 @@ $TESTING=true
 JRUBY = RUBY_PLATFORM =~ /java/
 
 require 'rubygems'
+require 'rspec'
 require 'date'
 require 'ostruct'
 require 'fileutils'
@@ -19,12 +20,14 @@ repo_root = File.expand_path('../../..', __FILE__)
 end
 
 require 'data_objects'
-require 'data_objects/spec/bacon'
-require 'data_objects/spec/helpers/ssl'
+require 'data_objects/spec/setup'
+require 'data_objects/spec/lib/ssl'
+require 'data_objects/spec/lib/pending_helpers'
 require 'do_mysql'
 
 DataObjects::Mysql.logger = DataObjects::Logger.new(STDOUT, :off)
 at_exit { DataObjects.logger.flush }
+
 
 CONFIG = OpenStruct.new
 CONFIG.scheme   = 'mysql'
@@ -40,8 +43,11 @@ CONFIG.port     = ENV['DO_MYSQL_PORT'] || '3306'
 CONFIG.database = ENV['DO_MYSQL_DATABASE'] || '/do_test'
 CONFIG.ssl      = SSLHelpers.query(:ca_cert, :client_cert, :client_key)
 
-CONFIG.uri = ENV["DO_MYSQL_SPEC_URI"] ||"#{CONFIG.scheme}://#{CONFIG.user_info}#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
-CONFIG.sleep = "SELECT sleep(1)"
+CONFIG.driver       = 'mysql'
+CONFIG.jdbc_driver  = DataObjects::Mysql.const_get('JDBC_DRIVER') rescue nil
+CONFIG.uri          = ENV["DO_MYSQL_SPEC_URI"] || "#{CONFIG.scheme}://#{CONFIG.user_info}#{CONFIG.host}:#{CONFIG.port}#{CONFIG.database}"
+CONFIG.jdbc_uri     = "jdbc:#{CONFIG.uri}"
+CONFIG.sleep        = "SELECT sleep(1)"
 
 module DataObjectsSpecHelpers
 
@@ -218,4 +224,7 @@ module DataObjectsSpecHelpers
 
 end
 
-include DataObjectsSpecHelpers
+RSpec.configure do |config|
+  config.include(DataObjectsSpecHelpers)
+  config.include(DataObjects::Spec::PendingHelpers)
+end
