@@ -96,8 +96,8 @@ public class Command extends DORubyObject {
         Ruby runtime = getRuntime();
         Connection connection_instance = (Connection) api.getInstanceVariable(this,
                 "@connection");
+        checkConnectionNotClosed(connection_instance);
         java.sql.Connection conn = connection_instance.getInternalConnection();
-        checkConnectionNotClosed(conn);
 
         IRubyObject insert_key = runtime.getNil();
         RubyClass resultClass = Result.createResultClass(runtime, driver);
@@ -147,20 +147,23 @@ public class Command extends DORubyObject {
 
             long startTime = System.currentTimeMillis();
             if (usePS) {
-                if (sqlText.contains("RETURNING") && !hasReturnParam) {
-                    keys = sqlStatement.executeQuery();
+                boolean hasResult = sqlStatement.execute();
+                if (hasResult) {
+                    keys = sqlStatement.getResultSet();
                 } else {
-                    affectedCount = sqlStatement.executeUpdate();
+                    affectedCount = sqlStatement.getUpdateCount();
                 }
             } else {
                 sqlSimpleStatement.execute(sqlText);
             }
             long endTime = System.currentTimeMillis();
 
-            if (usePS)
-                debug(driver.statementToString(sqlStatement), Long.valueOf(endTime - startTime));
-            else
-                debug(sqlText, Long.valueOf(endTime - startTime));
+            if (isDebug()) {
+              if (usePS)
+                  debug(driver.statementToString(sqlStatement), Long.valueOf(endTime - startTime));
+              else
+                  debug(sqlText, Long.valueOf(endTime - startTime));
+            }
 
             if (usePS && keys == null) {
                 if (driver.supportsJdbcGeneratedKeys()) {
@@ -189,6 +192,9 @@ public class Command extends DORubyObject {
                     // If there is no support, then a custom method can be defined
                     // to return a ResultSet with keys
                     keys = driver.getGeneratedKeys(conn);
+                    // The OpenEdge driver needs additional information
+                    if (keys == null)
+                        keys = driver.getGeneratedKeys(conn, sqlStatement, sqlText);
                 }
             }
             if (usePS && keys != null) {
@@ -226,8 +232,9 @@ public class Command extends DORubyObject {
         Ruby runtime = getRuntime();
         Connection connection_instance = (Connection) api.getInstanceVariable(this,
                 "@connection");
+        checkConnectionNotClosed(connection_instance);
+
         java.sql.Connection conn = connection_instance.getInternalConnection();
-        checkConnectionNotClosed(conn);
 
         RubyClass readerClass = Reader.createReaderClass(runtime, driver);
         boolean inferTypes = false;
@@ -256,8 +263,10 @@ public class Command extends DORubyObject {
             long startTime = System.currentTimeMillis();
             resultSet = sqlStatement.executeQuery();
             long endTime = System.currentTimeMillis();
-
-            debug(driver.statementToString(sqlStatement), Long.valueOf(endTime - startTime));
+ 
+            if (isDebug()) {
+                 debug(driver.statementToString(sqlStatement), Long.valueOf(endTime - startTime));
+            }
 
             metaData = resultSet.getMetaData();
             columnCount = metaData.getColumnCount();
@@ -388,10 +397,22 @@ public class Command extends DORubyObject {
      *
      * @param conn
      */
-    private void checkConnectionNotClosed(java.sql.Connection conn) {
+    private void checkConnectionNotClosed(Connection conn) {
         try {
-            if (conn == null || conn.isClosed()) {
+            java.sql.Connection internal_connection = conn.getInternalConnection();
+            if (internal_connection == null) {
                 throw Errors.newConnectionError(getRuntime(), "This connection has already been closed.");
+            }
+            if(internal_connection.isClosed()) {
+                /*
+                 * Try reconnecting here if the connection has failed without
+                 * us asking for it to be closed.
+                 */
+                conn.connect();
+                internal_connection = conn.getInternalConnection();
+                if (internal_connection == null || internal_connection.isClosed()) {
+                    throw Errors.newConnectionError(getRuntime(), "This connection has already been closed.");
+                }
             }
         } catch (SQLException ignored) {
         }
@@ -572,8 +593,8 @@ public class Command extends DORubyObject {
 
                     RubyRange range_value = (RubyRange) arg;
 
-                    driver.setPreparedStatementParam(ps, range_value.first(), index++);
-                    driver.setPreparedStatementParam(ps, range_value.last(), index++);
+                    driver.setPreparedStatementParam(ps, range_value.first(getRuntime().getCurrentContext()), index++);
+                    driver.setPreparedStatementParam(ps, range_value.last(getRuntime().getCurrentContext()), index++);
 
                 } else {
                     // Otherwise, handle each argument
@@ -622,24 +643,30 @@ public class Command extends DORubyObject {
      * @param executionTime
      */
     private void debug(String logMessage, Long executionTime) {
+      Ruby runtime = getRuntime();
+      Connection connection_instance = (Connection) api.getInstanceVariable(this,
+          "@connection");
+      RubyModule doModule  = runtime.getModule(DATA_OBJECTS_MODULE_NAME);
+      RubyClass loggerClass = doModule.getClass("Logger");
+      RubyClass messageClass = loggerClass.getClass("Message");
+
+      IRubyObject loggerMsg  = messageClass.newInstance(runtime.getCurrentContext(),
+          runtime.newString(logMessage),    // query
+          runtime.newString(""),            // start
+          runtime.newFixnum(executionTime), // duration
+          Block.NULL_BLOCK);
+
+      api.callMethod(connection_instance, "log", loggerMsg);
+    }
+
+    /**
+     * returns if the debug mode is turned on.
+     */
+    private boolean isDebug() {
         RubyModule driverModule = (RubyModule) getRuntime().getModule(
                 DATA_OBJECTS_MODULE_NAME).getConstant(driver.getModuleName());
         IRubyObject logger = api.callMethod(driverModule, "logger");
         int level = RubyNumeric.fix2int(api.callMethod(logger, "level"));
-
-        if (level == 0) {
-            StringBuilder msgSb = new StringBuilder();
-            Formatter formatter = new Formatter(msgSb);
-
-            if (executionTime != null) {
-                formatter.format("(%.3f) ", executionTime / 1000.0);
-            }
-
-            msgSb.append(logMessage);
-
-            api.callMethod(logger, "debug", getRuntime().newString(
-                    msgSb.toString()));
-        }
+        return level == 0;
     }
-
 }

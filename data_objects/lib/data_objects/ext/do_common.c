@@ -3,6 +3,9 @@
 #include <math.h>
 #include <ctype.h>
 #include <time.h>
+#ifndef _WIN32
+#include <sys/time.h>
+#endif
 
 #include "do_common.h"
 
@@ -11,13 +14,13 @@
  */
 
 // To store rb_intern values
-ID ID_NEW;
-ID ID_NEW_DATE;
-ID ID_CONST_GET;
-ID ID_RATIONAL;
-ID ID_ESCAPE;
-ID ID_STRFTIME;
-ID ID_LOG;
+ID DO_ID_NEW;
+ID DO_ID_NEW_DATE;
+ID DO_ID_CONST_GET;
+ID DO_ID_RATIONAL;
+ID DO_ID_ESCAPE;
+ID DO_ID_STRFTIME;
+ID DO_ID_LOG;
 
 // Reference to Extlib module
 VALUE mExtlib;
@@ -33,8 +36,8 @@ VALUE cDO_Reader;
 VALUE cDO_Logger;
 VALUE cDO_Logger_Message;
 VALUE cDO_Extension;
-VALUE eConnectionError;
-VALUE eDataError;
+VALUE eDO_ConnectionError;
+VALUE eDO_DataError;
 
 // References to Ruby classes that we'll need
 VALUE rb_cDate;
@@ -47,24 +50,26 @@ VALUE rb_cBigDecimal;
 
 
 VALUE data_objects_const_get(VALUE scope, const char *constant) {
-  return rb_funcall(scope, ID_CONST_GET, 1, rb_str_new2(constant));
+  return rb_funcall(scope, DO_ID_CONST_GET, 1, rb_str_new2(constant));
 }
 
 void data_objects_debug(VALUE connection, VALUE string, struct timeval *start) {
   struct timeval stop;
   VALUE message;
+  do_int64 duration;
 
   gettimeofday(&stop, NULL);
-  do_int64 duration = (stop.tv_sec - start->tv_sec) * 1000000 + stop.tv_usec - start->tv_usec;
+  duration = (stop.tv_sec - start->tv_sec) * 1000000 + stop.tv_usec - start->tv_usec;
 
-  message = rb_funcall(cDO_Logger_Message, ID_NEW, 3, string, rb_time_new(start->tv_sec, start->tv_usec), INT2NUM(duration));
+  message = rb_funcall(cDO_Logger_Message, DO_ID_NEW, 3, string, rb_time_new(start->tv_sec, start->tv_usec), INT2NUM(duration));
 
-  rb_funcall(connection, ID_LOG, 1, message);
+  rb_funcall(connection, DO_ID_LOG, 1, message);
 }
 
-void data_objects_raise_error(VALUE self, const struct errcodes *errors, int errnum, const char *message, VALUE query, VALUE state) {
+void data_objects_raise_error(VALUE self, const struct errcodes *errors, int errnum, VALUE message, VALUE query, VALUE state) {
   const char *exception_type = "SQLError";
   const struct errcodes *e;
+  VALUE uri, exception;
 
   for (e = errors; e->error_name; e++) {
     if (e->error_no == errnum) {
@@ -74,13 +79,13 @@ void data_objects_raise_error(VALUE self, const struct errcodes *errors, int err
     }
   }
 
-  VALUE uri = rb_funcall(rb_iv_get(self, "@connection"), rb_intern("to_s"), 0);
+  uri = rb_funcall(rb_iv_get(self, "@connection"), rb_intern("to_s"), 0);
 
-  VALUE exception = rb_funcall(
+  exception = rb_funcall(
     data_objects_const_get(mDO, exception_type),
-    ID_NEW,
+    DO_ID_NEW,
     5,
-    rb_str_new2(message),
+    message,
     INT2NUM(errnum),
     state,
     query,
@@ -116,14 +121,14 @@ void data_objects_assert_file_exists(char *file, const char *message) {
 }
 
 VALUE data_objects_build_query_from_args(VALUE klass, int count, VALUE *args) {
-  VALUE array = rb_ary_new();
   int i;
+  VALUE array = rb_ary_new();
 
   for (i = 0; i < count; i++) {
     rb_ary_push(array, args[i]);
   }
 
-  return rb_funcall(klass, ID_ESCAPE, 1, array);
+  return rb_funcall(klass, DO_ID_ESCAPE, 1, array);
 }
 
 // Find the greatest common denominator and reduce the provided numerator and denominator.
@@ -161,7 +166,7 @@ VALUE data_objects_seconds_to_offset(long seconds_offset) {
   do_int64 den = 86400;
 
   data_objects_reduce(&num, &den);
-  return rb_funcall(rb_mKernel, ID_RATIONAL, 2, rb_ll2inum(num), rb_ll2inum(den));
+  return rb_funcall(rb_mKernel, DO_ID_RATIONAL, 2, rb_ll2inum(num), rb_ll2inum(den));
 }
 
 VALUE data_objects_timezone_to_offset(int hour_offset, int minute_offset) {
@@ -176,8 +181,6 @@ VALUE data_objects_timezone_to_offset(int hour_offset, int minute_offset) {
 VALUE data_objects_parse_date(const char *date) {
   static char const *const _fmt_date = "%4d-%2d-%2d";
   int year = 0, month = 0, day = 0;
-  int jd, ajd;
-  VALUE rational;
 
   switch (sscanf(date, _fmt_date, &year, &month, &day)) {
     case 0:
@@ -185,15 +188,15 @@ VALUE data_objects_parse_date(const char *date) {
       return Qnil;
   }
 
-  jd       = data_objects_jd_from_date(year, month, day);
-  ajd      = (jd * 2) - 1;        // Math from Date.jd_to_ajd
-  rational = rb_funcall(rb_mKernel, ID_RATIONAL, 2, INT2NUM(ajd), INT2NUM(2));
+  if(!year && !month && !day) {
+    return Qnil;
+  }
 
-  return rb_funcall(rb_cDate, ID_NEW_DATE, 3, rational, INT2NUM(0), INT2NUM(2299161));
+  return rb_funcall(rb_cDate, DO_ID_NEW, 3, INT2NUM(year), INT2NUM(month), INT2NUM(day));
 }
 
 VALUE data_objects_parse_time(const char *date) {
-  static char const* const _fmt_datetime = "%4d-%2d-%2d %2d:%2d:%2d%7lf";
+  static char const* const _fmt_datetime = "%4d-%2d-%2d%*c%2d:%2d:%2d%7lf";
   int year = 0, month = 0, day = 0, hour = 0, min = 0, sec = 0, usec = 0;
   double subsec = 0;
 
@@ -219,10 +222,9 @@ VALUE data_objects_parse_date_time(const char *date) {
   int tokens_read;
   const char *fmt_datetime;
 
-  VALUE ajd, offset;
+  VALUE offset;
 
-  int year, month, day, hour, min, sec, hour_offset, minute_offset, jd;
-  do_int64 num, den;
+  int year, month, day, hour, min, sec, hour_offset, minute_offset;
 
   struct tm timeinfo;
   time_t target_time;
@@ -241,6 +243,10 @@ VALUE data_objects_parse_date_time(const char *date) {
    */
   fmt_datetime = strchr(date, '.') ? _fmt_datetime_tz_subsec : _fmt_datetime_tz_normal;
   tokens_read  = sscanf(date, fmt_datetime, &year, &month, &day, &hour, &min, &sec, &hour_offset, &minute_offset);
+
+  if(!year && !month && !day && !hour && !min && !sec) {
+    return Qnil;
+  }
 
   switch (tokens_read) {
     case 8:
@@ -296,37 +302,12 @@ VALUE data_objects_parse_date_time(const char *date) {
       break;
 
     default: /* Any other combo of missing tokens and we can't do anything */
-      rb_raise(eDataError, "Couldn't parse date: %s", date);
+      rb_raise(eDO_DataError, "Couldn't parse date: %s", date);
   }
 
-  jd = data_objects_jd_from_date(year, month, day);
-
-  /*
-   * Generate ajd with fractional days for the time.
-   * Extracted from Date#jd_to_ajd, Date#day_fraction_to_time, and Rational#+ and #-.
-   *
-   * TODO: These are 64bit numbers; is reduce() really necessary?
-   */
-
-  num = (hour * 1440) + (min * 24);
-  num -= (hour_offset * 1440) + (minute_offset * 24);
-  den = (24 * 1440);
-  data_objects_reduce(&num, &den);
-
-  num = (num * 86400) + (sec * den);
-  den = den * 86400;
-  data_objects_reduce(&num, &den);
-
-  num += jd * den;
-
-  num = (num * 2) - den;
-  den *= 2;
-  data_objects_reduce(&num, &den);
-
-  ajd = rb_funcall(rb_mKernel, ID_RATIONAL, 2, rb_ull2inum(num), rb_ull2inum(den));
   offset = data_objects_timezone_to_offset(hour_offset, minute_offset);
-
-  return rb_funcall(rb_cDateTime, ID_NEW_DATE, 3, ajd, offset, INT2NUM(2299161));
+  return rb_funcall(rb_cDateTime, DO_ID_NEW, 7, INT2NUM(year), INT2NUM(month), INT2NUM(day),
+                                             INT2NUM(hour), INT2NUM(min), INT2NUM(sec), offset);
 }
 
 VALUE data_objects_cConnection_character_set(VALUE self) {
@@ -342,17 +323,17 @@ VALUE data_objects_cConnection_ssl_cipher(VALUE self) {
 }
 
 VALUE data_objects_cConnection_quote_time(VALUE self, VALUE value) {
-  return rb_funcall(value, ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d %H:%M:%S'"));
+  return rb_funcall(value, DO_ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d %H:%M:%S'"));
 }
 
 VALUE data_objects_cConnection_quote_date_time(VALUE self, VALUE value) {
   // TODO: Support non-local dates. we need to call #new_offset on the date to be
   // quoted and pass in the current locale's date offset (self.new_offset((hours * 3600).to_r / 86400)
-  return rb_funcall(value, ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d %H:%M:%S'"));
+  return rb_funcall(value, DO_ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d %H:%M:%S'"));
 }
 
 VALUE data_objects_cConnection_quote_date(VALUE self, VALUE value) {
-  return rb_funcall(value, ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d'"));
+  return rb_funcall(value, DO_ID_STRFTIME, 1, rb_str_new2("'%Y-%m-%d'"));
 }
 
 /*
@@ -360,16 +341,14 @@ VALUE data_objects_cConnection_quote_date(VALUE self, VALUE value) {
  * into Ruby-strings so we can easily typecast later
  */
 VALUE data_objects_cCommand_set_types(int argc, VALUE *argv, VALUE self) {
+  VALUE entry, sub_entry;
+  int i, j;
   VALUE type_strings = rb_ary_new();
   VALUE array = rb_ary_new();
-
-  int i, j;
 
   for (i = 0; i < argc; i++) {
     rb_ary_push(array, argv[i]);
   }
-
-  VALUE entry, sub_entry;
 
   for (i = 0; i < RARRAY_LEN(array); i++) {
     entry = rb_ary_entry(array, i);
@@ -403,7 +382,7 @@ VALUE data_objects_cReader_values(VALUE self) {
   VALUE values = rb_iv_get(self, "@values");
 
   if (state == Qnil || state == Qfalse || values == Qnil) {
-    rb_raise(eDataError, "Reader is not initialized");
+    rb_raise(eDO_DataError, "Reader is not initialized");
   }
 
   return rb_iv_get(self, "@values");
@@ -424,24 +403,24 @@ void data_objects_common_init(void) {
   rb_require("data_objects");
 
   // Needed by data_objects_const_get
-  ID_CONST_GET = rb_intern("const_get");
+  DO_ID_CONST_GET = rb_intern("const_get");
 
   // Get references classes needed for Date/Time parsing
   rb_cDate = data_objects_const_get(rb_mKernel, "Date");
   rb_cDateTime = data_objects_const_get(rb_mKernel, "DateTime");
   rb_cBigDecimal = data_objects_const_get(rb_mKernel, "BigDecimal");
 
-  ID_NEW = rb_intern("new");
+  DO_ID_NEW = rb_intern("new");
 #ifdef RUBY_LESS_THAN_186
-  ID_NEW_DATE = rb_intern("new0");
+  DO_ID_NEW_DATE = rb_intern("new0");
 #else
-  ID_NEW_DATE = rb_intern("new!");
+  DO_ID_NEW_DATE = rb_intern("new!");
 #endif
-  ID_CONST_GET = rb_intern("const_get");
-  ID_RATIONAL = rb_intern("Rational");
-  ID_ESCAPE = rb_intern("escape_sql");
-  ID_STRFTIME = rb_intern("strftime");
-  ID_LOG = rb_intern("log");
+  DO_ID_CONST_GET = rb_intern("const_get");
+  DO_ID_RATIONAL = rb_intern("Rational");
+  DO_ID_ESCAPE = rb_intern("escape_sql");
+  DO_ID_STRFTIME = rb_intern("strftime");
+  DO_ID_LOG = rb_intern("log");
 
   // Get references to the Extlib module
   mExtlib = data_objects_const_get(rb_mKernel, "Extlib");
@@ -458,15 +437,15 @@ void data_objects_common_init(void) {
   cDO_Logger_Message = data_objects_const_get(cDO_Logger, "Message");
   cDO_Extension = data_objects_const_get(mDO, "Extension");
 
-  eConnectionError = data_objects_const_get(mDO, "ConnectionError");
-  eDataError = data_objects_const_get(mDO, "DataError");
+  eDO_ConnectionError = data_objects_const_get(mDO, "ConnectionError");
+  eDO_DataError = data_objects_const_get(mDO, "DataError");
 
-  rb_global_variable(&ID_NEW_DATE);
-  rb_global_variable(&ID_RATIONAL);
-  rb_global_variable(&ID_CONST_GET);
-  rb_global_variable(&ID_ESCAPE);
-  rb_global_variable(&ID_LOG);
-  rb_global_variable(&ID_NEW);
+  rb_global_variable(&DO_ID_NEW_DATE);
+  rb_global_variable(&DO_ID_RATIONAL);
+  rb_global_variable(&DO_ID_CONST_GET);
+  rb_global_variable(&DO_ID_ESCAPE);
+  rb_global_variable(&DO_ID_LOG);
+  rb_global_variable(&DO_ID_NEW);
 
   rb_global_variable(&rb_cDate);
   rb_global_variable(&rb_cDateTime);
@@ -476,8 +455,8 @@ void data_objects_common_init(void) {
   rb_global_variable(&mDO);
   rb_global_variable(&cDO_Logger_Message);
 
-  rb_global_variable(&eConnectionError);
-  rb_global_variable(&eDataError);
+  rb_global_variable(&eDO_ConnectionError);
+  rb_global_variable(&eDO_DataError);
 
   tzset();
 }
@@ -502,7 +481,7 @@ extern VALUE data_objects_typecast(const char *value, long length, const VALUE t
     return rb_float_new(rb_cstr_to_dbl(value, Qfalse));
   }
   else if (type == rb_cBigDecimal) {
-    return rb_funcall(rb_cBigDecimal, ID_NEW, 1, rb_str_new(value, length));
+    return rb_funcall(rb_cBigDecimal, DO_ID_NEW, 1, rb_str_new(value, length));
   }
   else if (type == rb_cDate) {
     return data_objects_parse_date(value);
@@ -517,7 +496,7 @@ extern VALUE data_objects_typecast(const char *value, long length, const VALUE t
     return (!value || strcmp("0", value) == 0) ? Qfalse : Qtrue;
   }
   else if (type == rb_cByteArray) {
-    return rb_funcall(rb_cByteArray, ID_NEW, 1, rb_str_new(value, length));
+    return rb_funcall(rb_cByteArray, DO_ID_NEW, 1, rb_str_new(value, length));
   }
   else if (type == rb_cClass) {
     return rb_funcall(mDO, rb_intern("full_const_get"), 1, rb_str_new(value, length));

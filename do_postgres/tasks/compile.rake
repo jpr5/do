@@ -40,7 +40,7 @@ begin
       At the time of building this gem, the necessary DLL files where available
       in the following download:
 
-      http://wwwmaster.postgresql.org/redir/107/h/binary/v#{BINARY_VERSION}/win32/postgresql-#{BINARY_VERSION}-1-binaries-no-installer.zip
+      http://wwwmaster.postgresql.org/redir/107/h/binary/v#{BINARY_VERSION}/win32/postgresql-#{BINARY_VERSION}-1-windows-binaries.zip
 
       You can put the following files available in this package in your Ruby bin
       directory, for example C:\\Ruby\\bin
@@ -70,7 +70,7 @@ begin
     ext.classpath = '../do_jdbc/lib/do_jdbc_internal.jar'
     ext.java_compiling do |gem|
       gem.add_dependency 'jdbc-postgres', '>=8.2'
-      gem.add_dependency 'do_jdbc',       '0.10.6'
+      gem.add_dependency 'do_jdbc',       '0.10.17'
     end
   end
 rescue LoadError

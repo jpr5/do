@@ -1,3 +1,13 @@
+def test_connection(conn)
+  reader = conn.create_command(CONFIG.testsql || "SELECT 1").execute_reader
+  reader.next!
+  result = reader.values[0]
+  result
+ensure
+  reader.close
+  conn.close
+end
+
 shared_examples_for 'a Connection' do
 
   before :all do
@@ -25,21 +35,15 @@ shared_examples_for 'a Connection' do
   end
 
   describe 'various connection URIs' do
-    def test_connection(conn)
-      reader = conn.create_command(CONFIG.testsql || "SELECT 1").execute_reader
-      reader.next!
-      reader.values[0]
-    end
 
     it 'should open with an uri object' do
       uri = DataObjects::URI.new(
-              @driver,
-              @user,
-              @password,
-              @host,
-              @port && @port.to_i,
-              @database,
-              nil, nil
+              :scheme   => @driver,
+              :user     => @user,
+              :password => @password,
+              :host     => @host,
+              :port     => @port && @port.to_i,
+              :path     => @database
             )
       conn = DataObjects::Connection.new(uri)
       test_connection(conn).should == 1
@@ -109,10 +113,6 @@ shared_examples_for 'a Connection with authentication support' do
       lambda { DataObjects::Connection.new(uri) }
     end
 
-    it 'should raise an error if no database specified' do
-      connecting_with("#{@driver}://#{@user}:#{@password}@#{@host}:#{@port}").should raise_error #(ArgumentError, DataObjects::Error)
-    end
-
     it 'should raise an error if bad username is given' do
       connecting_with("#{@driver}://thisreallyshouldntexist:#{@password}@#{@host}:#{@port}#{@database}").should raise_error #(ArgumentError, DataObjects::Error)
     end
@@ -129,22 +129,17 @@ shared_examples_for 'a Connection with authentication support' do
       connecting_with("#{@driver}://#{@user}:#{@password}:#{@host}:#{@port}/someweirddatabase").should raise_error #(ArgumentError, DataObjects::Error)
     end
 
-    it 'should raise an error with a meaningless URI' do
-      connecting_with("#{@driver}://peekaboo$2!@#4543").should raise_error(Addressable::URI::InvalidURIError)
-    end
-
   end
 
 end
 
-def test_connection(conn)
-  reader = conn.create_command(CONFIG.testsql || "SELECT 1").execute_reader
-  reader.next!
-  result = reader.values[0]
-  result
-ensure
-  reader.close
-  conn.close
+shared_examples_for 'a Connection allowing default database' do
+  describe 'with a URI without a database' do
+    it 'should connect properly' do
+      conn = DataObjects::Connection.new("#{@driver}://#{@user}:#{@password}@#{@host}:#{@port}")
+      test_connection(conn).should == 1
+    end
+  end
 end
 
 shared_examples_for 'a Connection with JDBC URL support' do

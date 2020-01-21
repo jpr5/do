@@ -17,6 +17,8 @@ begin
       ext.cross_compile = true
       ext.cross_platform = ['x86-mingw32', 'x86-mswin32-60']
       ext.cross_config_options << "--with-sqlite3-dir=#{sqlite3_lib}"
+      ext.cross_config_options << "--with-sqlite3-include=#{sqlite3_lib}/include"
+      ext.cross_config_options << "--with-sqlite3-lib=#{sqlite3_lib}/lib"
 
       ext.cross_compiling do |gemspec|
         gemspec.post_install_message = <<-POST_INSTALL_MESSAGE
@@ -30,7 +32,7 @@ begin
     At the time of building this gem, the necessary DLL files where available
     in the following download:
 
-    http://www.sqlite.org/sqlitedll-#{BINARY_VERSION}.zip
+    http://www.sqlite.org/sqlite-dll-win32-x86-#{BINARY_VERSION}.zip
 
     You can put the sqlite3.dll available in this package in your Ruby bin
     directory, for example C:\\Ruby\\bin
@@ -55,7 +57,7 @@ begin
     ext.classpath = '../do_jdbc/lib/do_jdbc_internal.jar'
     ext.java_compiling do |gem|
       gem.add_dependency 'jdbc-sqlite3', '>=3.5.8'
-      gem.add_dependency 'do_jdbc',      '0.10.6'
+      gem.add_dependency 'do_jdbc',      '0.10.17'
     end
   end
 rescue LoadError

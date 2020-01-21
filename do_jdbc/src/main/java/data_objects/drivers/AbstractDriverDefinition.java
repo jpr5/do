@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Calendar;
 import java.util.Map;
 import java.util.Properties;
 
@@ -24,7 +25,6 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.jruby.Ruby;
-import org.jruby.RubyBigDecimal;
 import org.jruby.RubyBignum;
 import org.jruby.RubyClass;
 import org.jruby.RubyEncoding;
@@ -309,13 +309,14 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
             if (bd  == null) {
                 return runtime.getNil();
             }
-            return new RubyBigDecimal(runtime, bd);
+            return runtime.getKernel().callMethod("BigDecimal",
+                    runtime.newString(bd.toPlainString()));
         case DATE:
             java.sql.Date date = rs.getDate(col);
             if (date == null) {
                 return runtime.getNil();
             }
-            return prepareRubyDateFromSqlDate(runtime, sqlDateToDateTime(date));
+            return prepareRubyDateFromSqlDate(runtime, date);
         case DATE_TIME:
             java.sql.Timestamp dt = null;
             // DateTimes with all-zero components throw a SQLException with
@@ -448,7 +449,7 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
             ps.setDouble(idx, RubyNumeric.num2dbl(arg));
             break;
         case BIG_DECIMAL:
-            ps.setBigDecimal(idx, ((RubyBigDecimal) arg).getValue());
+            ps.setBigDecimal(idx, ((BigDecimal) arg.toJava(Object.class)));
             break;
         case NIL:
             ps.setNull(idx, ps.getParameterMetaData().getParameterType(idx));
@@ -561,6 +562,17 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
 
     /**
      *
+     * @param connection
+     * @param ps
+     * @param sqlText
+     * @return
+     */
+    public ResultSet getGeneratedKeys(Connection connection, PreparedStatement ps, String sqlText) throws SQLException{
+        return null;
+    }
+
+    /**
+     *
      * @return
      */
     public Properties getDefaultConnectionProperties() {
@@ -658,18 +670,6 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
 
     /**
      *
-     * @param date
-     * @return
-     */
-    protected static DateTime sqlDateToDateTime(Date date) {
-        if (date == null)
-            return null;
-        else
-            return new DateTime(date);
-    }
-
-    /**
-     *
      * @param ts
      * @return
      */
@@ -740,18 +740,14 @@ public abstract class AbstractDriverDefinition implements DriverDefinition {
      * @param date
      * @return
      */
-    public static IRubyObject prepareRubyDateFromSqlDate(Ruby runtime,
-            DateTime date) {
-
-        if (date.getMillis() == 0) {
-            return runtime.getNil();
-        }
-
+    public static IRubyObject prepareRubyDateFromSqlDate(Ruby runtime, java.util.Date date) {
+        Calendar c = Calendar.getInstance();
+        c.setTime(date);
         RubyClass klazz = runtime.fastGetClass("Date");
         return klazz.callMethod(runtime.getCurrentContext(), "civil",
-                new IRubyObject[] { runtime.newFixnum(date.getYear()),
-                        runtime.newFixnum(date.getMonthOfYear()),
-                        runtime.newFixnum(date.getDayOfMonth()) });
+                new IRubyObject[] { runtime.newFixnum(c.get(Calendar.YEAR)),
+                        runtime.newFixnum(c.get(Calendar.MONTH) + 1),
+                        runtime.newFixnum(c.get(Calendar.DAY_OF_MONTH)) });
     }
 
     /**

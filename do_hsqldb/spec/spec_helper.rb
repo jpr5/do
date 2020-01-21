@@ -70,11 +70,11 @@ module DataObjectsSpecHelpers
         id                INTEGER IDENTITY,
         code              CHAR(8) DEFAULT 'A14' NULL,
         name              VARCHAR(200) DEFAULT 'Super Widget' NULL,
-        shelf_location    VARCHAR NULL,
+        shelf_location    VARCHAR(200) NULL,
         description       LONGVARCHAR NULL,
-        image_data        VARBINARY NULL,
+        image_data        VARBINARY(1024) NULL,
         ad_description    LONGVARCHAR NULL,
-        ad_image          VARBINARY NULL,
+        ad_image          VARBINARY(1024) NULL,
         whitepaper_text   LONGVARCHAR NULL,
         cad_drawing       LONGVARBINARY NULL,
         flags             BOOLEAN DEFAULT 0,
@@ -83,7 +83,7 @@ module DataObjectsSpecHelpers
         super_number      BIGINT DEFAULT 9223372036854775807,
         weight            FLOAT DEFAULT 1.23,
         cost1             REAL DEFAULT 10.23,
-        cost2             DECIMAL DEFAULT 50.23,
+        cost2             DECIMAL(10,2) DEFAULT 50.23,
         release_date      DATE DEFAULT '2008-02-14',
         release_datetime  DATETIME DEFAULT '2008-02-14 00:31:12',
         release_timestamp TIMESTAMP DEFAULT '2008-02-14 00:31:31'
@@ -119,46 +119,46 @@ module DataObjectsSpecHelpers
           1234,
           13.4);
       EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set flags = true where id = 2
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set ad_description = NULL where id = 3
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set flags = NULL where id = 4
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set cost1 = NULL where id = 5
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set cost2 = NULL where id = 6
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set release_date = NULL where id = 7
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set release_datetime = NULL where id = 8
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set release_timestamp = NULL where id = 9
-      EOF
-
-      conn.create_command(<<-EOF).execute_non_query
-        update widgets set release_datetime = '2008-07-14 00:31:12' where id = 10
-      EOF
-
-      ## TODO: change the hexadecimal examples
-      conn.close
     end
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set flags = true where id = 2
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set ad_description = NULL where id = 3
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set flags = NULL where id = 4
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set cost1 = NULL where id = 5
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set cost2 = NULL where id = 6
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set release_date = NULL where id = 7
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set release_datetime = NULL where id = 8
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set release_timestamp = NULL where id = 9
+    EOF
+
+    conn.create_command(<<-EOF).execute_non_query
+      update widgets set release_datetime = '2008-07-14 00:31:12' where id = 10
+    EOF
+
+    ## TODO: change the hexadecimal examples
+    conn.close
 
   end
 end

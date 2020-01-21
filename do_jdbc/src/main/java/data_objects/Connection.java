@@ -46,6 +46,8 @@ public final class Connection extends DORubyObject {
 
     private java.sql.Connection sqlConnection;
     private java.net.URI connectionUri;
+    private Map<String, String> query;
+    private String encoding;
 
     private static final ObjectAllocator CONNECTION_ALLOCATOR = new ObjectAllocator() {
 
@@ -71,16 +73,6 @@ public final class Connection extends DORubyObject {
         connectionClass.defineAnnotatedMethods(Connection.class);
         setDriverDefinition(connectionClass, runtime, driver);
 
-        if (driver.supportsConnectionEncodings()) {
-            connectionClass.defineFastMethod("character_set", new Callback() {
-                public Arity getArity() {
-                    return Arity.NO_ARGUMENTS;
-                }
-                public IRubyObject execute(final IRubyObject recv, final IRubyObject[] args, Block block) {
-                    return recv.getInstanceVariables().fastGetInstanceVariable("@encoding");
-                }
-            });
-        }
         return connectionClass;
     }
 
@@ -104,8 +96,6 @@ public final class Connection extends DORubyObject {
     public IRubyObject initialize(final IRubyObject uri) {
         // System.out.println("============== initialize called " + uri);
         Ruby runtime = getRuntime();
-        String encoding = null;
-        Map<String, String> query = null;
 
         try {
             connectionUri = driver.parseConnectionURI(uri);
@@ -115,17 +105,6 @@ public final class Connection extends DORubyObject {
         } catch (UnsupportedEncodingException ex) {
             //XXX Nothing to close
             throw runtime.newArgumentError("Unsupported Encoding in Query Parameters" + ex);
-        }
-
-        // Normally, a database path must be specified. However, we should only
-        // throw this error for opaque URIs - so URIs like jdbc:h2:mem should work.
-        if (!connectionUri.isOpaque() && (connectionUri.getPath() == null
-                || "".equals(connectionUri.getPath())
-                || "/".equals(connectionUri.getPath()))) {
-            // XXX Nothing to close
-            // XXX: MRI driver raises a ConnectionError. Is a ArgumentError not
-            //      more appropriate?
-            throw Errors.newConnectionError(runtime, "No database specified");
         }
 
         if (connectionUri.getQuery() != null) {
@@ -151,6 +130,16 @@ public final class Connection extends DORubyObject {
             }
             api.setInstanceVariable(this, "@encoding", runtime.newString(encoding));
         }
+
+        // #to_s implemented in Ruby relies on this @uri ivar
+        api.setInstanceVariable(this, "@uri", uri);
+
+        connect();
+        return runtime.getTrue();
+    }
+
+    public void connect() {
+        Ruby runtime = getRuntime();
 
         java.sql.Connection conn = null;
 
@@ -215,13 +204,7 @@ public final class Connection extends DORubyObject {
                                      + "\n\t" + ex.getLocalizedMessage());
         }
 
-
-        // #to_s implemented in Ruby relies on this @uri ivar
-        api.setInstanceVariable(this, "@uri", uri);
-
         this.sqlConnection = conn;
-
-        return runtime.getTrue();
     }
 
     /**
@@ -245,6 +228,7 @@ public final class Connection extends DORubyObject {
         }
 
         JDBCUtil.close(sqlConnection);
+        sqlConnection = null;
         return runtime.getTrue();
     }
 
@@ -270,6 +254,19 @@ public final class Connection extends DORubyObject {
     public IRubyObject quote_byte_array(final IRubyObject value) {
         String quoted = driver.quoteByteArray(this, value);
         return getRuntime().newString(quoted);
+    }
+
+    /**
+     *
+     * @return
+     */
+    @JRubyMethod
+    public IRubyObject character_set() {
+      if (driver.supportsConnectionEncodings()) {
+        return api.getInstanceVariable(this, "@encoding");
+      } else {
+        return getRuntime().getNil();
+      }
     }
 
     /**

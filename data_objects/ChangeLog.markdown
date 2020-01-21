@@ -1,3 +1,61 @@
+## 0.10.17 2016-01-24
+
+* Enable CI with Ruby 2.3
+* Improve utf8mb4 support in do\_mysql
+* Fix memory leak in do\_mysql and do\_postgres
+* Support for MySQL 5.7 in do\_mysql
+* Fix bug with DateTime and wrong timezone offsets
+* Fix compilation on JRuby 9000
+
+## 0.10.16 2015-05-17
+
+* Fix compile issue with do\_postgres on stock OS X Ruby
+
+## 0.10.15 2015-02-15
+
+* Ruby 2.2 support
+* Double after free fix in do\_postgres
+* utf8mb4 support on do\_mysql
+
+* Windows support on 2.1.x and 2.2.x
+## 0.10.14 2014-02-13
+
+* Don't do DNS lookup in transaction loading
+
+## 0.10.13 2013-05-27
+
+* Create binaries for Ruby 2.0 on Windows
+* Fix segfault in do\_postgres
+* Fix compilation of do\_oracle for Ruby 2.0
+
+## 0.10.12 2013-01-21
+
+* Fix JRuby driver loading for newer jdbc-\* gems
+* Compatibility change for anscient MySQL versions
+
+## 0.10.11 2012-12-29
+
+* Rename C symbols to prevent name collitions
+
+## 0.10.10 2012-10-11
+
+* JRuby performance improvements
+* Reconnect added on JRuby
+* do\_sqlite3 C driver supports busy\_timeout
+
+## 0.10.9 2012-08-13
+
+* Don't try to escape queries when no binding parameters are given
+
+## 0.10.8 2012-02-10
+
+* Ruby 1.9.3 compatibility on Windows
+* Don't display password in URI
+
+## 0.10.7 2011-10-13
+
+* Ruby 1.9.3 compatibility
+
 ## 0.10.6 2011-05-22
 
 Bugfixes

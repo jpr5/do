@@ -1,6 +1,7 @@
 ENV["RC_ARCHS"] = "" if RUBY_PLATFORM =~ /darwin/
 
 require 'mkmf'
+require 'date'
 
 # Allow for custom compiler to be specified.
 RbConfig::MAKEFILE_CONFIG['CC'] = ENV['CC'] if ENV['CC']
@@ -79,7 +80,14 @@ have_func 'mysql_sqlstate', 'mysql.h'
 have_func 'mysql_get_ssl_cipher', 'mysql.h'
 have_func 'mysql_set_character_set', 'mysql.h'
 have_func 'mysql_get_server_version', 'mysql.h'
+have_func 'mysql_real_escape_string_quote', 'mysql.h'
 have_struct_member 'MYSQL_FIELD', 'charsetnr', 'mysql.h'
+
+have_func('rb_thread_fd_select')
+
+unless DateTime.respond_to?(:new!)
+  $CFLAGS << ' -DHAVE_NO_DATETIME_NEWBANG'
+end
 
 $CFLAGS << ' -Wall '
 

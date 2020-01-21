@@ -3,21 +3,21 @@
 
 #include "do_common.h"
 
-VALUE mSqlite3;
-VALUE cSqlite3Connection;
-VALUE cSqlite3Command;
-VALUE cSqlite3Result;
-VALUE cSqlite3Reader;
+VALUE mDO_Sqlite3;
+VALUE cDO_Sqlite3Connection;
+VALUE cDO_Sqlite3Command;
+VALUE cDO_Sqlite3Result;
+VALUE cDO_Sqlite3Reader;
 
-VALUE OPEN_FLAG_READONLY;
-VALUE OPEN_FLAG_READWRITE;
-VALUE OPEN_FLAG_CREATE;
-VALUE OPEN_FLAG_NO_MUTEX;
-VALUE OPEN_FLAG_FULL_MUTEX;
+VALUE DO_OPEN_FLAG_READONLY;
+VALUE DO_OPEN_FLAG_READWRITE;
+VALUE DO_OPEN_FLAG_CREATE;
+VALUE DO_OPEN_FLAG_NO_MUTEX;
+VALUE DO_OPEN_FLAG_FULL_MUTEX;
 
 void do_sqlite3_raise_error(VALUE self, sqlite3 *result, VALUE query) {
   int errnum = sqlite3_errcode(result);
-  const char *message = sqlite3_errmsg(result);
+  VALUE message = rb_str_new2(sqlite3_errmsg(result));
   VALUE sql_state = rb_str_new2("");
 
   data_objects_raise_error(self, do_sqlite3_errors, errnum, message, query, sql_state);
@@ -67,7 +67,7 @@ VALUE do_sqlite3_typecast(sqlite3_stmt *stmt, int i, VALUE type, int encoding) {
     return rb_float_new(sqlite3_column_double(stmt, i));
   }
   else if (type == rb_cBigDecimal) {
-    return rb_funcall(rb_cBigDecimal, ID_NEW, 1, rb_str_new((char*)sqlite3_column_text(stmt, i), length));
+    return rb_funcall(rb_cBigDecimal, DO_ID_NEW, 1, rb_str_new((char*)sqlite3_column_text(stmt, i), length));
   }
   else if (type == rb_cDate) {
     return data_objects_parse_date((char*)sqlite3_column_text(stmt, i));
@@ -82,7 +82,7 @@ VALUE do_sqlite3_typecast(sqlite3_stmt *stmt, int i, VALUE type, int encoding) {
     return strcmp((char*)sqlite3_column_text(stmt, i), "t") == 0 ? Qtrue : Qfalse;
   }
   else if (type == rb_cByteArray) {
-    return rb_funcall(rb_cByteArray, ID_NEW, 1, rb_str_new((char*)sqlite3_column_blob(stmt, i), length));
+    return rb_funcall(rb_cByteArray, DO_ID_NEW, 1, rb_str_new((char*)sqlite3_column_blob(stmt, i), length));
   }
   else if (type == rb_cClass) {
     return rb_funcall(mDO, rb_intern("full_const_get"), 1, rb_str_new((char*)sqlite3_column_text(stmt, i), length));
@@ -106,7 +106,7 @@ int do_sqlite3_flags_from_uri(VALUE uri) {
   if (!NIL_P(query_values) && TYPE(query_values) == T_HASH) {
     /// scan for flags
 #ifdef SQLITE_OPEN_READONLY
-    if (FLAG_PRESENT(query_values, OPEN_FLAG_READONLY)) {
+    if (FLAG_PRESENT(query_values, DO_OPEN_FLAG_READONLY)) {
       flags |= SQLITE_OPEN_READONLY;
     }
     else {
@@ -115,13 +115,13 @@ int do_sqlite3_flags_from_uri(VALUE uri) {
 #endif
 
 #ifdef SQLITE_OPEN_NOMUTEX
-    if (FLAG_PRESENT(query_values, OPEN_FLAG_NO_MUTEX)) {
+    if (FLAG_PRESENT(query_values, DO_OPEN_FLAG_NO_MUTEX)) {
       flags |= SQLITE_OPEN_NOMUTEX;
     }
 #endif
 
 #ifdef SQLITE_OPEN_FULLMUTEX
-    if (FLAG_PRESENT(query_values, OPEN_FLAG_FULL_MUTEX)) {
+    if (FLAG_PRESENT(query_values, DO_OPEN_FLAG_FULL_MUTEX)) {
       flags |= SQLITE_OPEN_FULLMUTEX;
     }
 #endif
@@ -136,6 +136,20 @@ int do_sqlite3_flags_from_uri(VALUE uri) {
 }
 
 #endif
+
+
+int do_sqlite3_busy_timeout_from_uri(VALUE uri) {
+  VALUE query_values = rb_funcall(uri, rb_intern("query"), 0);
+  if(query_values != Qnil && TYPE(query_values) == T_HASH) {
+    VALUE timeout = rb_hash_aref(query_values, rb_str_new2("busy_timeout"));
+    if(timeout == Qnil) {
+      return -1;
+    }
+
+    return rb_cstr2inum(RSTRING_PTR(timeout), 0);
+  }
+  return -1;
+}
 
 /****** Public API ******/
 
@@ -152,6 +166,11 @@ VALUE do_sqlite3_cConnection_initialize(VALUE self, VALUE uri) {
 
   if (ret != SQLITE_OK) {
     do_sqlite3_raise_error(self, db, Qnil);
+  }
+
+  int timeout = do_sqlite3_busy_timeout_from_uri(uri);
+  if(timeout > 0) {
+    sqlite3_busy_timeout(db, timeout);
   }
 
   rb_iv_set(self, "@uri", uri);
@@ -172,7 +191,8 @@ VALUE do_sqlite3_cConnection_dispose(VALUE self) {
     return Qfalse;
   }
 
-  sqlite3 *db = DATA_PTR(connection_container);
+  sqlite3 *db;
+  Data_Get_Struct(connection_container, sqlite3, db);
 
   if (!db) {
     return Qfalse;
@@ -215,57 +235,13 @@ VALUE do_sqlite3_cConnection_quote_byte_array(VALUE self, VALUE string) {
   return rb_ary_join(array, Qnil);
 }
 
-VALUE do_sqlite3_cConnection_enable_load_extension(VALUE self, VALUE value) {
-  VALUE connection = rb_iv_get(self, "@connection");
-
-  if (connection == Qnil) {
-    return Qfalse;
-  }
-
-  sqlite3 *db = DATA_PTR(connection);
-
-  if (!db) {
-    return Qfalse;
-  }
-
-  int status = sqlite3_enable_load_extension(db, value == Qtrue ? 1 : 0);
-
-  if (status != SQLITE_OK) {
-    rb_raise(eConnectionError, "Error enabling load extension.");
-  }
-  return Qtrue;
-}
-
-VALUE do_sqlite3_cConnection_load_extension(VALUE self, VALUE string) {
-  VALUE connection = rb_iv_get(self, "@connection");
-
-  if (connection == Qnil) {
-    return Qfalse;
-  }
-
-  sqlite3 *db = DATA_PTR(connection);
-
-  if (!db) {
-    return Qfalse;
-  }
-
-  const char *extension_name  = rb_str_ptr_readonly(string);
-  char *errmsg = NULL;
-  int status = sqlite3_load_extension(db, extension_name, 0, &errmsg);
-
-  if (status != SQLITE_OK) {
-    rb_raise(eConnectionError, "%s", errmsg);
-  }
-  return Qtrue;
-}
-
 VALUE do_sqlite3_cCommand_execute_non_query(int argc, VALUE *argv, VALUE self) {
   VALUE query = data_objects_build_query_from_args(self, argc, argv);
   VALUE connection = rb_iv_get(self, "@connection");
   VALUE sqlite3_connection = rb_iv_get(connection, "@connection");
 
   if (sqlite3_connection == Qnil) {
-    rb_raise(eConnectionError, "This connection has already been closed.");
+    rb_raise(eDO_ConnectionError, "This connection has already been closed.");
   }
 
   sqlite3 *db = NULL;
@@ -288,7 +264,7 @@ VALUE do_sqlite3_cCommand_execute_non_query(int argc, VALUE *argv, VALUE self) {
   int affected_rows = sqlite3_changes(db);
   do_int64 insert_id = sqlite3_last_insert_rowid(db);
 
-  return rb_funcall(cSqlite3Result, ID_NEW, 3, self, INT2NUM(affected_rows), INT2NUM(insert_id));
+  return rb_funcall(cDO_Sqlite3Result, DO_ID_NEW, 3, self, INT2NUM(affected_rows), INT2NUM(insert_id));
 }
 
 VALUE do_sqlite3_cCommand_execute_reader(int argc, VALUE *argv, VALUE self) {
@@ -297,7 +273,7 @@ VALUE do_sqlite3_cCommand_execute_reader(int argc, VALUE *argv, VALUE self) {
   VALUE sqlite3_connection = rb_iv_get(connection, "@connection");
 
   if (sqlite3_connection == Qnil) {
-    rb_raise(eConnectionError, "This connection has already been closed.");
+    rb_raise(eDO_ConnectionError, "This connection has already been closed.");
   }
 
   sqlite3 *db = NULL;
@@ -317,7 +293,7 @@ VALUE do_sqlite3_cCommand_execute_reader(int argc, VALUE *argv, VALUE self) {
   }
 
   int field_count = sqlite3_column_count(sqlite3_reader);
-  VALUE reader = rb_funcall(cSqlite3Reader, ID_NEW, 0);
+  VALUE reader = rb_funcall(cDO_Sqlite3Reader, DO_ID_NEW, 0);
 
   rb_iv_set(reader, "@reader", Data_Wrap_Struct(rb_cObject, 0, 0, sqlite3_reader));
   rb_iv_set(reader, "@field_count", INT2NUM(field_count));
@@ -363,16 +339,23 @@ VALUE do_sqlite3_cReader_close(VALUE self) {
 }
 
 VALUE do_sqlite3_cReader_next(VALUE self) {
+
+  VALUE reader = rb_iv_get(self, "@reader");
+
+  if(reader == Qnil) {
+    rb_raise(eDO_ConnectionError, "This result set has already been closed.");
+  }
+
   if (rb_iv_get(self, "@done") == Qtrue) {
     return Qfalse;
   }
 
-  sqlite3_stmt *reader = NULL;
+  sqlite3_stmt *sqlite_reader = NULL;
   int result;
 
-  Data_Get_Struct(rb_iv_get(self, "@reader"), sqlite3_stmt, reader);
+  Data_Get_Struct(reader, sqlite3_stmt, sqlite_reader);
 
-  result = sqlite3_step(reader);
+  result = sqlite3_step(sqlite_reader);
   rb_iv_set(self, "@state", INT2NUM(result));
 
   if (result != SQLITE_ROW) {
@@ -399,7 +382,7 @@ VALUE do_sqlite3_cReader_next(VALUE self) {
 
   for (i = 0; i < field_count; i++) {
     field_type = rb_ary_entry(field_types, i);
-    value = do_sqlite3_typecast(reader, i, field_type, enc);
+    value = do_sqlite3_typecast(sqlite_reader, i, field_type, enc);
     rb_ary_push(arr, value);
   }
 
@@ -411,7 +394,7 @@ VALUE do_sqlite3_cReader_values(VALUE self) {
   VALUE state = rb_iv_get(self, "@state");
 
   if (state == Qnil || NUM2INT(state) != SQLITE_ROW) {
-    rb_raise(eDataError, "Reader is not initialized");
+    rb_raise(eDO_DataError, "Reader is not initialized");
     return Qnil;
   }
 
@@ -421,47 +404,45 @@ VALUE do_sqlite3_cReader_values(VALUE self) {
 void Init_do_sqlite3() {
   data_objects_common_init();
 
-  mSqlite3 = rb_define_module_under(mDO, "Sqlite3");
+  mDO_Sqlite3 = rb_define_module_under(mDO, "Sqlite3");
 
-  cSqlite3Connection = rb_define_class_under(mSqlite3, "Connection", cDO_Connection);
-  rb_define_method(cSqlite3Connection, "initialize", do_sqlite3_cConnection_initialize, 1);
-  rb_define_method(cSqlite3Connection, "dispose", do_sqlite3_cConnection_dispose, 0);
-  rb_define_method(cSqlite3Connection, "quote_boolean", do_sqlite3_cConnection_quote_boolean, 1);
-  rb_define_method(cSqlite3Connection, "quote_string", do_sqlite3_cConnection_quote_string, 1);
-  rb_define_method(cSqlite3Connection, "quote_byte_array", do_sqlite3_cConnection_quote_byte_array, 1);
-  rb_define_method(cSqlite3Connection, "character_set", data_objects_cConnection_character_set, 0);
-  rb_define_method(cSqlite3Connection, "enable_load_extension", do_sqlite3_cConnection_enable_load_extension, 1);
-  rb_define_method(cSqlite3Connection, "load_extension", do_sqlite3_cConnection_load_extension, 1);
+  cDO_Sqlite3Connection = rb_define_class_under(mDO_Sqlite3, "Connection", cDO_Connection);
+  rb_define_method(cDO_Sqlite3Connection, "initialize", do_sqlite3_cConnection_initialize, 1);
+  rb_define_method(cDO_Sqlite3Connection, "dispose", do_sqlite3_cConnection_dispose, 0);
+  rb_define_method(cDO_Sqlite3Connection, "quote_boolean", do_sqlite3_cConnection_quote_boolean, 1);
+  rb_define_method(cDO_Sqlite3Connection, "quote_string", do_sqlite3_cConnection_quote_string, 1);
+  rb_define_method(cDO_Sqlite3Connection, "quote_byte_array", do_sqlite3_cConnection_quote_byte_array, 1);
+  rb_define_method(cDO_Sqlite3Connection, "character_set", data_objects_cConnection_character_set, 0);
 
-  cSqlite3Command = rb_define_class_under(mSqlite3, "Command", cDO_Command);
-  rb_define_method(cSqlite3Command, "set_types", data_objects_cCommand_set_types, -1);
-  rb_define_method(cSqlite3Command, "execute_non_query", do_sqlite3_cCommand_execute_non_query, -1);
-  rb_define_method(cSqlite3Command, "execute_reader", do_sqlite3_cCommand_execute_reader, -1);
+  cDO_Sqlite3Command = rb_define_class_under(mDO_Sqlite3, "Command", cDO_Command);
+  rb_define_method(cDO_Sqlite3Command, "set_types", data_objects_cCommand_set_types, -1);
+  rb_define_method(cDO_Sqlite3Command, "execute_non_query", do_sqlite3_cCommand_execute_non_query, -1);
+  rb_define_method(cDO_Sqlite3Command, "execute_reader", do_sqlite3_cCommand_execute_reader, -1);
 
-  cSqlite3Result = rb_define_class_under(mSqlite3, "Result", cDO_Result);
+  cDO_Sqlite3Result = rb_define_class_under(mDO_Sqlite3, "Result", cDO_Result);
 
-  cSqlite3Reader = rb_define_class_under(mSqlite3, "Reader", cDO_Reader);
-  rb_define_method(cSqlite3Reader, "close", do_sqlite3_cReader_close, 0);
-  rb_define_method(cSqlite3Reader, "next!", do_sqlite3_cReader_next, 0);
-  rb_define_method(cSqlite3Reader, "values", do_sqlite3_cReader_values, 0); // TODO: DRY?
-  rb_define_method(cSqlite3Reader, "fields", data_objects_cReader_fields, 0);
-  rb_define_method(cSqlite3Reader, "field_count", data_objects_cReader_field_count, 0);
+  cDO_Sqlite3Reader = rb_define_class_under(mDO_Sqlite3, "Reader", cDO_Reader);
+  rb_define_method(cDO_Sqlite3Reader, "close", do_sqlite3_cReader_close, 0);
+  rb_define_method(cDO_Sqlite3Reader, "next!", do_sqlite3_cReader_next, 0);
+  rb_define_method(cDO_Sqlite3Reader, "values", do_sqlite3_cReader_values, 0); // TODO: DRY?
+  rb_define_method(cDO_Sqlite3Reader, "fields", data_objects_cReader_fields, 0);
+  rb_define_method(cDO_Sqlite3Reader, "field_count", data_objects_cReader_field_count, 0);
 
-  rb_global_variable(&cSqlite3Result);
-  rb_global_variable(&cSqlite3Reader);
+  rb_global_variable(&cDO_Sqlite3Result);
+  rb_global_variable(&cDO_Sqlite3Reader);
 
-  OPEN_FLAG_READONLY = rb_str_new2("read_only");
-  rb_global_variable(&OPEN_FLAG_READONLY);
-  OPEN_FLAG_READWRITE = rb_str_new2("read_write");
-  rb_global_variable(&OPEN_FLAG_READWRITE);
-  OPEN_FLAG_CREATE = rb_str_new2("create");
-  rb_global_variable(&OPEN_FLAG_CREATE);
-  OPEN_FLAG_NO_MUTEX = rb_str_new2("no_mutex");
-  rb_global_variable(&OPEN_FLAG_NO_MUTEX);
-  OPEN_FLAG_FULL_MUTEX = rb_str_new2("full_mutex");
-  rb_global_variable(&OPEN_FLAG_FULL_MUTEX);
+  DO_OPEN_FLAG_READONLY = rb_str_new2("read_only");
+  rb_global_variable(&DO_OPEN_FLAG_READONLY);
+  DO_OPEN_FLAG_READWRITE = rb_str_new2("read_write");
+  rb_global_variable(&DO_OPEN_FLAG_READWRITE);
+  DO_OPEN_FLAG_CREATE = rb_str_new2("create");
+  rb_global_variable(&DO_OPEN_FLAG_CREATE);
+  DO_OPEN_FLAG_NO_MUTEX = rb_str_new2("no_mutex");
+  rb_global_variable(&DO_OPEN_FLAG_NO_MUTEX);
+  DO_OPEN_FLAG_FULL_MUTEX = rb_str_new2("full_mutex");
+  rb_global_variable(&DO_OPEN_FLAG_FULL_MUTEX);
 
   Init_do_sqlite3_extension();
 
-  data_objects_define_errors(mSqlite3, do_sqlite3_errors);
+  data_objects_define_errors(mDO_Sqlite3, do_sqlite3_errors);
 }

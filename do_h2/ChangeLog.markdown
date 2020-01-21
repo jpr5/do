@@ -1,3 +1,43 @@
+## 0.10.17 2016-01-24
+
+No changes
+
+## 0.10.16 2015-05-17
+
+No changes
+
+## 0.10.15 2015-02-15
+
+No changes
+
+## 0.10.14 2014-02-13
+
+* Don't do DNS lookup in transaction loading
+
+## 0.10.13 2013-05-27
+
+No changes
+
+## 0.10.12 2013-01-21
+
+* jdbc-h2 driver loading fix
+
+## 0.10.11 2012-12-29
+
+No changes
+
+## 0.10.10 2012-10-11
+
+No changes
+
+## 0.10.9 2012-08-13
+
+No changes
+
+## 0.10.7 2011-10-13
+
+No changes
+
 ## 0.10.6 2011-05-22
 
 No changes

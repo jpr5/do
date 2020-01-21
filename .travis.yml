@@ -1,0 +1,22 @@
+rvm:
+  - 1.8.7
+  - 1.9.2
+  - 1.9.3
+  - 2.0.0
+  - 2.1.8
+  - 2.2.4
+  - 2.3.0
+  - rbx-2
+  - ree
+  - jruby-18mode
+  - jruby-19mode
+matrix:
+  allow_failures:
+    - rvm: 1.9.2
+    - rvm: 1.8.7
+    - rvm: ree
+    - rvm: jruby-18mode
+    - rvm: jruby-19mode
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y postgresql-server-dev-all

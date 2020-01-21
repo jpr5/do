@@ -1,3 +1,51 @@
+## 0.10.17 2016-01-24
+
+No changes
+
+## 0.10.16 2015-05-17
+
+No changes
+
+## 0.10.15 2015-02-15
+
+* Ruby 2.2 support
+* Windows support on 2.1.x and 2.2.x
+
+## 0.10.14 2014-02-13
+
+* Don't do DNS lookup in transaction loading
+* Allow for subsecond timestamp parsing
+
+## 0.10.13 2013-05-27
+
+* Windows binary for Ruby 2.0
+
+## 0.10.12 2013-01-21
+
+* jdbc-sqlite3 driver loading fix
+* Improve handling of floats / doubles in sqlite3 on JRuby
+
+## 0.10.11 2012-12-29
+
+* Rename C symbols to prevent name collitions
+
+## 0.10.10 2012-10-11
+
+* Add support to C driver for busy\_timeout
+
+## 0.10.9 2012-08-13
+
+* Fix segfault when loading custom extensions
+
+## 0.10.8 2012-02-10
+
+* Ruby 1.9.3 compatibility on Windows
+* Fix issue with sqlite3_load_extension
+
+## 0.10.7 2011-10-13
+
+* Ruby 1.9.3 compatibility
+
 ## 0.10.6 2011-05-22
 
 Bugfixes

@@ -12,8 +12,9 @@ if RUBY_PLATFORM =~ /java/
 
   begin
     java.lang.Thread.currentThread.getContextClassLoader().loadClass(DataObjects::H2::JDBC_DRIVER, true)
-  rescue
+  rescue java.lang.ClassNotFoundException
     require 'jdbc/h2'     # the JDBC driver, packaged as a gem
+    Jdbc::H2.load_driver if Jdbc::H2.respond_to?(:load_driver)
   end
 
   require 'do_h2/do_h2'   # the Java extension for this DO driver

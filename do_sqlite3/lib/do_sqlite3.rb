@@ -11,8 +11,9 @@ if RUBY_PLATFORM =~ /java/
 
   begin
     java.lang.Thread.currentThread.getContextClassLoader().loadClass(DataObjects::Sqlite3::JDBC_DRIVER, true)
-  rescue
+  rescue java.lang.ClassNotFoundException
     require 'jdbc/sqlite3' # the JDBC driver, packaged as a gem
+    Jdbc::SQLite3.load_driver if Jdbc::SQLite3.respond_to?(:load_driver)
   end
 
   # Another way of loading the JDBC Class. This seems to be more reliable

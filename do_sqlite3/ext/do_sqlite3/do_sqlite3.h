@@ -5,6 +5,9 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#ifndef _WIN32
+#include <sys/time.h>
+#endif
 #include <locale.h>
 #include <sqlite3.h>
 #include "compat.h"
@@ -13,7 +16,7 @@
 #define sqlite3_prepare_v2 sqlite3_prepare
 #endif
 
-extern VALUE mSqlite3;
+extern VALUE mDO_Sqlite3;
 extern void Init_do_sqlite3_extension();
 
 #endif
